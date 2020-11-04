@@ -519,5 +519,4 @@ namespace VisibilityConditions
             };
         }
     }
-
 }
