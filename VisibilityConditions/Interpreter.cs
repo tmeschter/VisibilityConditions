@@ -363,7 +363,7 @@ namespace VisibilityConditions
                     throw new InvalidOperationException($"Unhandled parse result type: {rightResult.GetType()}.");
             }
 
-            start = leftResult.NextTokenIndex;
+            start = rightResult.NextTokenIndex;
 
             if (tokens[start].Type != TokenType.RightParen)
             {
