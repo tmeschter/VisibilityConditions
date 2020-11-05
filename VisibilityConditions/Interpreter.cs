@@ -5,6 +5,10 @@ namespace VisibilityConditions
 {
     // TOKENS
 
+    /// <remarks>
+    /// We include an explicit EndOfInput token which will always be the last
+    /// token if we successfully parse all input.
+    /// </remarks>
     public enum TokenType
     {
         LeftParen,
@@ -16,10 +20,28 @@ namespace VisibilityConditions
         EndOfInput
     }
 
+    /// <remarks>
+    /// The Token type encapsulates both the token kind, the text of the token
+    /// proper, *and* all the whitespace that precedes the token. We don't care
+    /// about the text of the whitespace, but we do care about the total length
+    /// of the whitespace and token so that we can properly advance the lexer
+    /// and determine an accurate location for warnings/errors.
+    /// </remarks>
     public record Token(TokenType Type, int StartOfWhitespace, int WhitespaceLength, string Text)
     {
+        /// <summary>
+        /// Starting location of the token text proper.
+        /// </summary>
         public int Start => StartOfWhitespace + WhitespaceLength;
+
+        /// <summary>
+        /// Length of the token text proper.
+        /// </summary>
         public int Length => Text.Length;
+
+        /// <summary>
+        /// Length of the token including any preceding whitespace.
+        /// </summary>
         public int LengthWithWhitespace => WhitespaceLength + Text.Length;
     }
 
@@ -201,26 +223,30 @@ namespace VisibilityConditions
         Not
     }
 
-    public abstract record ExpressionType();
-
     public abstract record Expression();
-
     public record Variable(string Name) : Expression;
-
     public record IntConstant(int Value) : Expression;
     public record StringConstant(string Value) : Expression;
     public record BooleanConstant(bool Value) : Expression;
-
     public record UnaryExpression(UnaryOperation Operation, Expression Child) : Expression;
-
     public record BinaryExpression(BinaryOperation Operation, Expression Left, Expression Right) : Expression;
 
+    /// <remarks>
+    /// For a successful parse of an expression, NextTokenIndex indicates where
+    /// the parse should start on the next expression. For a failed parse,
+    /// NextTokenIndex indicates where the error occurred.
+    /// </remarks>
     public abstract record ParseResult(int NextTokenIndex);
     public record ParseSuccess(Expression Expression, int NextTokenIndex) : ParseResult(NextTokenIndex);
     public record ParseFailure(string Message, int NextTokenIndex) : ParseResult(NextTokenIndex);
 
     public class ExpressionParser
     {
+        /// <remarks>
+        /// A successful parse includes the requirement that we consume all of
+        /// the input tokens. That is, after parsing the next token should be
+        /// the EndOfInput token.
+        /// </remarks>
         public static ParseResult Parse(ImmutableArray<Token> input)
         {
             var result = ParseExpression(input, start: 0);
@@ -228,12 +254,18 @@ namespace VisibilityConditions
             return result switch
             {
                 ParseFailure => result,
-                ParseSuccess success when success.NextTokenIndex == input.Length - 1 => result,
+                ParseSuccess success when input[success.NextTokenIndex].Type == TokenType.EndOfInput => result,
                 ParseSuccess success => new ParseFailure($"Unexpected token '{input[success.NextTokenIndex].Text}'.", success.NextTokenIndex),
                 _ => throw new InvalidOperationException($"Unhandled parse result type: {result.GetType()}.")
             };
         }
 
+        /// <remarks>
+        /// This method peeks at the next token and then delegates to one of
+        /// the other Parse* methods. Those methods generally assume that the
+        /// caller has done the right thing, and generally do not validate the
+        /// token types themselves.
+        /// </remarks>
         private static ParseResult ParseExpression(ImmutableArray<Token> tokens, int start)
         {
             return tokens[start].Type switch
